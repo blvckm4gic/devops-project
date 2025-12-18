@@ -3,10 +3,11 @@ pipeline {
 
     environment {
         IMAGE_NAME = "blvckm4gic/todo-app"
-        IMAGE_TAG = "latest"
+        IMAGE_TAG  = "latest"
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -15,25 +16,24 @@ pipeline {
 
         stage('Build Docker image') {
             steps {
-                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+                sh '''
+                docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                '''
             }
         }
 
-        stage('Login to Docker Hub') {
+        stage('Push to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh '''
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    docker push $IMAGE_NAME:$IMAGE_TAG
+                    '''
                 }
-            }
-        }
-
-        stage('Push Docker image') {
-            steps {
-                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
             }
         }
     }
