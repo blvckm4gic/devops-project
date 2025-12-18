@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "blvckm4gic/todo-app"
+        IMAGE_TAG = "latest"
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -10,16 +15,25 @@ pipeline {
 
         stage('Build Docker image') {
             steps {
-                sh 'docker build -t blvckm4gic/todo-app:latest .'
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
-        stage('Run container') {
+        stage('Login to Docker Hub') {
             steps {
-                sh '''
-                docker rm -f todo-app || true
-                docker run -d -p 8080:8080 --name todo-app blvckm4gic/todo-app:latest
-                '''
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                }
+            }
+        }
+
+        stage('Push Docker image') {
+            steps {
+                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
             }
         }
     }
