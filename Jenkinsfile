@@ -1,64 +1,69 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    DOCKER_IMAGE = "blvckm4gic/todo-app"
-    IMAGE_TAG = "${BUILD_NUMBER}"
-    DOCKER_CREDS = "dockerhub-creds"
-  }
-
-  stages {
-
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    environment {
+        REGISTRY = "blvckm4gic"
+        IMAGE_NAME = "todo-app"
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
-    stage('Build') {
-      steps {
-        sh './gradlew clean build'
-      }
-    }
+    stages {
 
-    stage('Test') {
-      steps {
-        sh './gradlew test'
-      }
-    }
-
-    stage('Docker Build') {
-      steps {
-        sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
-      }
-    }
-
-    stage('Docker Push') {
-      when {
-        branch 'main'
-      }
-      steps {
-        withCredentials([usernamePassword(
-          credentialsId: DOCKER_CREDS,
-          usernameVariable: 'DOCKER_USER',
-          passwordVariable: 'DOCKER_PASS'
-        )]) {
-          sh '''
-            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-            docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
-          '''
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
         }
-      }
-    }
-  }
 
-  post {
-    success {
-      archiveArtifacts artifacts: 'build/libs/*.jar'
-      echo '✅ Pipeline completed successfully'
+        stage('Build') {
+            steps {
+                sh './gradlew clean build'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh './gradlew test'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh """
+                  docker build -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG .
+                  docker tag $REGISTRY/$IMAGE_NAME:$IMAGE_TAG $REGISTRY/$IMAGE_NAME:latest
+                """
+            }
+        }
+
+        stage('Push Docker Image') {
+            when {
+                branch 'main'
+            }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                      docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+                      docker push $REGISTRY/$IMAGE_NAME:latest
+                    """
+                }
+            }
+        }
     }
-    failure {
-      echo '❌ Pipeline failed'
+
+    post {
+        success {
+            archiveArtifacts artifacts: 'build/libs/*.jar'
+            echo "✅ Pipeline SUCCESS"
+        }
+
+        failure {
+            echo "❌ Pipeline FAILED"
+        }
     }
-  }
 }
